@@ -3,7 +3,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Callb
 import requests
 
 # Telegram Bot Token
-TOKEN = "7488416267:AAFJYwF7_Y_78DPWisD3plAuOsJ0UDqyw3s"
+TOKEN = "8451583637:AAEPo_dDgFLVJxWjD1Lx5srFMSAKdOTsZws"
 # ZeroBounce API key
 API_KEY = "fc58f137bc5d46c6bd0786b7c1d7400c"
 
