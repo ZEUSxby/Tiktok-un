@@ -34,9 +34,10 @@ def check_email(email):
         return "Geçersiz e-posta ❌"
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    email = update.message.text.strip()
-    result = check_email(email)
-    await update.message.reply_text(result)
+    if update.message:  # None kontrolü
+        email = update.message.text.strip()
+        result = check_email(email)
+        await update.message.reply_text(result)
 
 def main():
     app = Application.builder().token(TOKEN).build()
