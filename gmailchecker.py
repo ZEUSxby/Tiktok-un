@@ -11,13 +11,13 @@ API_KEY = "fc58f137bc5d46c6bd0786b7c1d7400c"
 # Kullanıcıların start komutunu kullanıp kullanmadığını saklamak için
 started_users = set()
 
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id not in started_users:
-        update.message.reply_text("Merhaba! Bana bir e-posta gönder, Gmail olup olmadığını söyleyeyim.")
+        await update.message.reply_text("Merhaba! Bana bir e-posta gönder, Gmail olup olmadığını söyleyeyim.")
         started_users.add(user_id)
     else:
-        update.message.reply_text("Zaten başlattınız, şimdi bir e-posta gönderebilirsiniz.")
+        await update.message.reply_text("Zaten başlattınız, şimdi bir e-posta gönderebilirsiniz.")
 
 def check_email(email):
     url = f"https://api.zerobounce.net/v2/validate?api_key={API_KEY}&email={email}"
@@ -33,20 +33,18 @@ def check_email(email):
     else:
         return "Geçersiz e-posta ❌"
 
-def handle_message(update: Update, context: CallbackContext):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     email = update.message.text.strip()
     result = check_email(email)
-    update.message.reply_text(result)
+    await update.message.reply_text(result)
 
 def main():
-    updater = Updater(TOKEN)
-    dp = updater.dispatcher
+    app = Application.builder().token(TOKEN).build()
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    updater.start_polling()
-    updater.idle()
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
