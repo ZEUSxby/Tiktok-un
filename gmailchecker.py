@@ -1,5 +1,6 @@
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes
+from telegram import filters
 import requests
 
 # Telegram Bot Token
