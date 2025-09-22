@@ -40,8 +40,8 @@ def main_menu():
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    KANAL_ID = "@babaprox3"              # Kanal username veya ID
-    KANAL_LINK = "https://t.me/babaprox3"  # Kullanıcının katılacağı link
+    KANAL_ID = "@ByzeusxToolmain"              # Kanal username veya ID
+    KANAL_LINK = "https://t.me/ByzeusxToolmain"  # Kullanıcının katılacağı link
 
     user_id = message.from_user.id
 
