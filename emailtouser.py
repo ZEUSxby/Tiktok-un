@@ -1,4 +1,4 @@
-import requests, SignerPy, json, secrets, uuid, binascii, os, time, random
+import requests, SignerPy, json, secrets, uuid, binascii, os, time, random, re, urllib.parse
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
@@ -9,13 +9,80 @@ user_started = set()  # Kullanıcı ID'lerini saklayacağız
 def xor(string):
     return "".join([hex(ord(c) ^ 5)[2:] for c in string])
 
+from telegram import Update
+from telegram.ext import ContextTypes
+
+KANAL_LINK = "https://t.me/ByzeusxToolmain"  # Kanal linki
+KANAL_ID = "@ByzeusxToolmain"      # veya -1001234567890
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+
+    # Kanal üyeliğini kontrol et
+    member = await context.bot.get_chat_member(chat_id=KANAL_ID, user_id=user_id)
+    if member.status in ["left", "kicked"]:
+        await update.message.reply_text(
+            f"❌ Botu kullanmak için önce kanala katılmanız gerekiyor!\n"
+            f"Katılmak için tıklayın: {KANAL_LINK}"
+        )
+        return  # Üye değilse işlemi durdur
+
+    # Daha önce başlatmış mı kontrol et
     if user_id in user_started:
         await update.message.reply_text("❌ Zaten başlatıldı! Bana sadece e-posta gönder.")
     else:
         user_started.add(user_id)
-        await update.message.reply_text("🎉 Merhaba! Bana e-posta gönder, TikTok kullanıcı adını bulayım.")
+        await update.message.reply_text(
+            "🎉 Merhaba! Bana e-posta gönder, TikTok kullanıcı adını bulayım."
+        )
+
+# ---------------- TikTok kullanıcı bilgilerini çekme fonksiyonu ----------------
+def get_tiktok_user_info(username):
+    if username.startswith('@'):
+        username = username[1:]
+
+    username_encoded = urllib.parse.quote(username)
+    url = f"https://www.tiktok.com/@{username_encoded}"
+    headers = {'User-Agent': 'Mozilla/5.0 (Linux; Android 12; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Mobile Safari/537.36'}
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        return {"error": f"Error: {response.status_code}"}
+
+    html_content = response.text
+
+    nickname = re.search(r'"nickname":"(.*?)"', html_content)
+    bio = re.search(r'"signature":"(.*?)"', html_content)
+    profile_pic = re.search(r'"avatarLarger":"(.*?)"', html_content)
+    followers = re.search(r'"followerCount":(\d+)', html_content)
+    following = re.search(r'"followingCount":(\d+)', html_content)
+    likes = re.search(r'"heartCount":(\d+)', html_content)
+    videos = re.search(r'"videoCount":(\d+)', html_content)
+
+    info = {
+        "username": username,
+        "nickname": nickname.group(1) if nickname else "Not found",
+        "bio": bio.group(1).replace('\\n','\n') if bio else "Not found",
+        "followers": followers.group(1) if followers else "Not found",
+        "following": following.group(1) if following else "Not found",
+        "likes": likes.group(1) if likes else "Not found",
+        "videos": videos.group(1) if videos else "Not found",
+        "profile_pic": profile_pic.group(1).replace('\\u002F','/') if profile_pic else None
+    }
+
+    # Sosyal linkler bio'dan ayıklanıyor
+    social_links = []
+    if bio:
+        bio_text = bio.group(1)
+        ig = re.search(r'[iI][gG]:\s*@?([a-zA-Z0-9._]+)', bio_text)
+        if ig: social_links.append(f"Instagram: @{ig.group(1)}")
+        tw = re.search(r'([tT]witter|[xX]):\s*@?([a-zA-Z0-9._]+)', bio_text)
+        if tw: social_links.append(f"Twitter/X: @{tw.group(2)}")
+        tg = re.search(r'[tT]elegram:\s*@?([a-zA-Z0-9._]+)', bio_text)
+        if tg: social_links.append(f"Telegram: @{tg.group(1)}")
+        email = re.search(r'[\w.+-]+@[\w-]+\.[\w.-]+', bio_text)
+        if email: social_links.append(f"Email: {email.group(0)}")
+    info['social_links'] = social_links
+    return info
 
 async def handle_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -56,9 +123,31 @@ async def handle_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         text = response.text.split('This email was generated for')[1]
         username = text.split('\\n')[0].strip().rstrip('.')
-        await update.message.reply_text(
-            f"✅ Kullanıcı adı bulundu!\n\n✨ Kullanıcı Adı: {username}\n🌐 Hesap Linki: tiktok.com/@{username}"
-        )
+
+        info = get_tiktok_user_info(username)
+        if "error" in info:
+            await update.message.reply_text(f"❌ Kullanıcı bilgileri alınamadı! Hata: {info['error']}")
+            return
+
+        message = (
+    f"✅ Kullanıcı bulundu!\n\n"
+    f"📧 E-posta: {es}\n"
+    f"✨ Kullanıcı Adı: {info['username']}\n"
+    f"📝 Nickname: {info['nickname']}\n"
+    f"💬 Biyografi: {info['bio']}\n"
+    f"👥 Takipçi: {info['followers']}\n"
+    f"👤 Takip Edilen: {info['following']}\n"
+    f"❤️ Beğeni: {info['likes']}\n"
+    f"🎬 Video Sayısı: {info['videos']}\n"
+    f"🌐 Profil Linki: https://www.tiktok.com/@{info['username']}\n"
+)
+        if info['social_links']:
+            message += "🔗 Sosyal Linkler:\n" + "\n".join(info['social_links'])
+        if info['profile_pic']:
+            message += f"\n🌐 Profil Fotoğrafı URL: {info['profile_pic']}"
+
+        await update.message.reply_text(message)
+
     except Exception as e:
         await update.message.reply_text(f"❌ Kullanıcı adı alınamadı! Hata: {e}")
 
@@ -67,3 +156,4 @@ app = ApplicationBuilder().token(BOT_TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_email))
 app.run_polling()
+
