@@ -1,7 +1,14 @@
 import re
 import requests
 from datetime import datetime
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram import Update
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
 BOT_TOKEN = "7488416267:AAFJYwF7_Y_78DPWisD3plAuOsJ0UDqyw3s"
 
@@ -29,7 +36,11 @@ def get_tiktok_user_info(sessionid=None, username=None):
         return "❌ Kullanıcı adı bulunamadı."
 
     url = f"https://www.tiktok.com/@{username}"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/120.0.0.0 Safari/537.36"
+    }
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
         return "❌ Profil bilgileri alınamadı."
@@ -60,28 +71,28 @@ def get_tiktok_user_info(sessionid=None, username=None):
 
     result = "\n============ 🎯 TİKTOK USER INFO ==============\n"
     result += f"👤 Kullanıcı Adı / Username: {username}\n"
-    if name: 
+    if name:
         result += f"📝 İsim / Name: {name.group(1)}\n"
-    if data.get('email'): 
+    if data.get('email'):
         result += f"📧 Email / Email: {data.get('email')}\n"
-    if data.get('user_id'): 
+    if data.get('user_id'):
         result += f"🆔 Kullanıcı ID / User ID: {data.get('user_id')}\n"
-    if data.get('country_code'): 
+    if data.get('country_code'):
         result += f"🌍 Ülke Kodu / Country Code: {data.get('country_code')}\n"
-    if followers: 
+    if followers:
         result += f"👥 Takipçi / Followers: {followers.group(1)}\n"
-    if following: 
+    if following:
         result += f"➡️ Takip Edilen / Following: {following.group(1)}\n"
-    if videos: 
+    if videos:
         result += f"🎥 Video Sayısı / Videos: {videos.group(1)}\n"
-    if likes: 
+    if likes:
         result += f"❤️ Beğeni Sayısı / Likes: {likes.group(1)}\n"
-    if bio: 
+    if bio:
         result += f"📄 Biyografi / Bio: {bio.group(1)}\n"
 
     result += f"🔑 Şifre Durumu / Password Set: {'Evet / Yes' if data.get('has_password') else 'Hayır / No'}\n"
 
-    if account_creation_date: 
+    if account_creation_date:
         result += f"📅 Hesap Oluşturma Tarihi / Account Creation Date: {account_creation_date}\n"
 
     result += f"📌 Konum Türü / Location Type: {location_type}\n"
@@ -91,34 +102,34 @@ def get_tiktok_user_info(sessionid=None, username=None):
 
 
 # 🚀 Telegram bot akışı
-def start(update, context):
-    update.message.reply_text(
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
         "Merhaba! 🎯\nBana istediğin zaman *Session ID* veya *TikTok kullanıcı adını* gönder, bilgilerini getireyim.",
         parse_mode="Markdown"
     )
 
-def handle_message(update, context):
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
-    msg = update.message.reply_text("⌛ Kullanıcı bilgileri alınıyor...")
+
+    msg = await update.message.reply_text("⌛ Kullanıcı bilgileri alınıyor...")
 
     if len(text) > 20 and text.isalnum():  # muhtemelen sessionid
         result = get_tiktok_user_info(sessionid=text)
     else:
         result = get_tiktok_user_info(username=text)
 
-    msg.edit_text(result)
+    await msg.edit_text(result)
 
 
 def main():
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    app = Application.builder().token(BOT_TOKEN).build()
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("🤖 Bot çalışıyor...")
-    updater.start_polling()
-    updater.idle()
+    app.run_polling()
 
 
 if __name__ == "__main__":
