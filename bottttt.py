@@ -2,7 +2,7 @@ import re
 import requests
 from datetime import datetime
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
 BOT_TOKEN = "7488416267:AAFJYwF7_Y_78DPWisD3plAuOsJ0UDqyw3s"
 
@@ -93,35 +93,33 @@ def get_tiktok_user_info(sessionid=None, username=None):
 
 
 # 🚀 Telegram bot akışı
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text(
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
         "Merhaba! 🎯\nBana istediğin zaman *Session ID* veya *TikTok kullanıcı adını* gönder, bilgilerini getireyim.",
         parse_mode="Markdown"
     )
 
-def handle_message(update: Update, context: CallbackContext):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
 
-    msg = update.message.reply_text("⌛ Kullanıcı bilgileri alınıyor...")
+    msg = await update.message.reply_text("⌛ Kullanıcı bilgileri alınıyor...")
 
     if len(text) > 20 and text.isalnum():
         result = get_tiktok_user_info(sessionid=text)
     else:
         result = get_tiktok_user_info(username=text)
 
-    msg.edit_text(result)
+    await msg.edit_text(result)
 
 
 def main():
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    app = Application.builder().token(BOT_TOKEN).build()
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("🤖 Bot çalışıyor...")
-    updater.start_polling()
-    updater.idle()
+    app.run_polling()
 
 
 if __name__ == "__main__":
