@@ -6,7 +6,7 @@ import telebot
 from telebot.types import InputFile
 
 # ========== AYARLAR ==========
-BOT_TOKEN = "8358589431:AAE_c-0nK3y07dCJEBfk6xJT_sOVWDRJLLU"  # <--- Token buraya
+BOT_TOKEN = "8358589431:AAE_c-0nK3y07dCJEBfk6xJT_sOVWDRJLLU"  # <--- Token'ı buraya yapıştır
 bot = telebot.TeleBot(BOT_TOKEN)
 RATE_LIMIT = 1  # saniye
 RESULT_FILE = "results.txt"
@@ -17,24 +17,15 @@ def mask_phone(phone: str) -> str:
     if not phone:
         return None
     phone = str(phone).strip()
-    # Temizle (boşluk, parantez, -)
     cleaned = re.sub(r"[^\d+]", "", phone)
     if len(cleaned) <= 4:
         return cleaned
-    # son 4 haneyi göster, öncesini yıldızla gizle
     last4 = cleaned[-4:]
     return ("*" * (len(cleaned) - 4)) + last4
 
-
 def extract_phone_info(data: dict):
-    """
-    Passport JSON içindeki olası telefon alanlarına bakar.
-    Döndürür: (phone_value_or_None, phone_verified_bool_or_None)
-    """
     if not data or not isinstance(data, dict):
         return None, None
-
-    # Olası alan adları
     phone_keys = ["phone", "phone_number", "mobile", "phone_md5", "mobile_phone"]
     verified_keys = ["phone_verified", "is_phone_verified", "mobile_verified", "is_mobile_verified"]
 
@@ -45,7 +36,6 @@ def extract_phone_info(data: dict):
             phone = v
             break
 
-    # Bazı API'ler içinde nested 'user' veya 'account' olabilir
     if not phone:
         for parent in ["user", "account", "profile"]:
             p = data.get(parent, {})
@@ -62,7 +52,6 @@ def extract_phone_info(data: dict):
         if vk in data:
             phone_verified = bool(data.get(vk))
             break
-    # nested check
     if phone_verified is None:
         for parent in ["user", "account", "profile"]:
             p = data.get(parent, {})
@@ -95,7 +84,7 @@ def get_tiktok_user_info(sessionid=None, username=None, index=None):
                     data = resp.json().get("data", {}) or {}
                     username = username or data.get("username")
                 except Exception:
-                    return f"❌ #{index} JSON okunamadı veya sessionid geçersiz. ({sessionid[:6]}...)"
+                    return f"❌ #{index} JSON okunamadı veya sessionid geçersiz. ({sessionid})"
             else:
                 return f"❌ #{index} İstek başarısız, kod: {resp.status_code}"
         except requests.RequestException as e:
@@ -135,22 +124,21 @@ def get_tiktok_user_info(sessionid=None, username=None, index=None):
     else:
         account_creation_date = None
 
-    location = location.group(1) if location else "Bilinmiyor"
-    location_type = "Hesap Iraklı" if "IQ" in location or "Iraq" in location else "Hesap Yabancı"
+    location_text = location.group(1) if location else "Bilinmiyor"
+    location_type = "Hesap Iraklı" if "IQ" in location_text or "Iraq" in location_text else "Hesap Yabancı"
     verified_status = "Doğrulanmış ✅" if verified and verified.group(1) == "true" else "Doğrulanmamış ❌"
 
     # Telefon bilgisi (passport data içinden)
     phone_raw, phone_verified = extract_phone_info(data)
     phone_masked = mask_phone(phone_raw) if phone_raw else None
-    phone_status_text = "Bilinmiyor"
     if phone_masked:
         phone_status_text = f"{phone_masked} ({'Doğrulanmış' if phone_verified else 'Doğrulanmamış' if phone_verified is not None else 'Doğrulama bilinmiyor'})"
     else:
-        # Eğer passport'ta yoksa HTML içinde de kullanıcı etiketinden alınamaz; Bilinmiyor olarak bırak
         phone_status_text = "Kayıtlı değil veya görünmüyor"
 
-    # Sonuç formatı (isteğinize göre çift dilli)
+    # Sonuç formatı (session ID artık HİÇ bir şekilde maskelenmiyor)
     result = f"\n============ 🎯 #{index} TİKTOK USER INFO ==============\n"
+    result += f"🔐 Session ID: {sessionid if sessionid else 'N/A'}\n"
     result += f"👤 Kullanıcı Adı / Username: {username}\n"
     if name:
         result += f"📝 İsim / Name: {name.group(1)}\n"
@@ -201,7 +189,7 @@ def handle_text(message):
     for i, sessionid in enumerate(sessions, start=1):
         result = get_tiktok_user_info(sessionid=sessionid, index=i)
         all_results.append(result)
-        # Telegram mesaj limiti yüzden uzun parçayı kes (veya dilersen parça parça yolla)
+        # Çok uzun mesajlar için ilk 4000 karakteri gönderiyoruz
         bot.send_message(message.chat.id, result[:4000])
         time.sleep(RATE_LIMIT)
 
