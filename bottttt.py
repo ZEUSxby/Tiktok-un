@@ -4,7 +4,7 @@ from datetime import datetime
 import telebot
 from telebot import types
 
-BOT_TOKEN = "7488416267:AAFJYwF7_Y_78DPWisD3plAuOsJ0UDqyw3s"
+BOT_TOKEN = "8358589431:AAE_c-0nK3y07dCJEBfk6xJT_sOVWDRJLLU"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # 🔎 TikTok verilerini al
