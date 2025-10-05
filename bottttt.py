@@ -6,7 +6,7 @@ import telebot
 from telebot.types import InputFile
 
 # ========== AYARLAR ==========
-BOT_TOKEN = "7488416267:AAFJYwF7_Y_78DPWisD3plAuOsJ0UDqyw3s"  # <--- Token buraya
+BOT_TOKEN = "8358589431:AAE_c-0nK3y07dCJEBfk6xJT_sOVWDRJLLU"  # <--- Token buraya
 bot = telebot.TeleBot(BOT_TOKEN)
 RATE_LIMIT = 1  # saniye
 RESULT_FILE = "results.txt"
