@@ -9,225 +9,177 @@ import os
 # === AYARLAR ===
 BOT_TOKEN = "8180247520:AAFw-UVXLjO5S_YP8vJQFOIYWPHyGczjy2g"
 KANAL_ADI = "@ByzeusxToolmain"
-ADMIN_IDS = [7823668175, 7038895537]  # admin ID'leri
+ADMIN_IDS = [7823668175, 7038895537]
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # === VERİ VE DEĞİŞKENLER ===
-cekilisler = {}  # {cekilis_id: {"katilanlar": [], "mesaj_id": int, "limit": int, "bitis_suresi": timestamp}}
+cekilisler = {}  # {cekilis_id: {"katilanlar": [], "mesaj_id": int, "admin_msg_id": int}}
 DATA_FILE = "cekilisler.json"
 
-# === JSON DOSYASI İLE KAYDETME VE YÜKLEME ===
 def kaydet_veri():
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(cekilisler, f, ensure_ascii=False, indent=2)
-
 
 def yukle_veri():
     global cekilisler
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             cekilisler = json.load(f)
-        # Süreleri thread ile yeniden başlat
-        for cekilis_id, cekilis in cekilisler.items():
-            cekilis["bitis_suresi"] = float(cekilis["bitis_suresi"])
-            threading.Thread(target=sureli_bitir, args=(cekilis_id,)).start()
 
-
-# === ANA MENÜ ===
-def ana_menu():
-    menu = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    menu.add("🚀 Çekiliş Başlat", "🛑 Çekiliş Bitir",
-             "🎁 Katılımcılar", "🟢 Aktif Çekiliş Var mı",
-             "⏱️ Otomatik Bitirme")
-    return menu
-
-
-# === SADECE ADMIN FONKSIYONU ===
+# === ADMIN KONTROL ===
 def admin_only(func):
     def wrapper(message):
         if message.from_user.id not in ADMIN_IDS:
-            bot.send_message(message.chat.id, "🚫 Bu komut sadece adminler tarafından kullanılabilir.")
+            bot.send_message(message.chat.id, "🚫 Bu komut sadece adminler için.")
             return
         func(message)
     return wrapper
 
+# === DM İÇİN ANA BUTONLAR ===
+def admin_inline_markup(cekilis_id=None):
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    if cekilis_id:
+        katilan_btn = types.InlineKeyboardButton("🎁 Katılımcılar", callback_data=f"katilan_{cekilis_id}")
+        bitir_btn = types.InlineKeyboardButton("🛑 Çekilişi Bitir", callback_data=f"bitir_{cekilis_id}")
+        aktif_btn = types.InlineKeyboardButton("🟢 Aktif Çekiliş Var mı", callback_data=f"aktif_{cekilis_id}")
+        markup.add(katilan_btn, bitir_btn, aktif_btn)
+    else:
+        baslat_btn = types.InlineKeyboardButton("🚀 Çekiliş Başlat", callback_data="baslat")
+        markup.add(baslat_btn)
+    return markup
 
-# === /start KOMUTU ===
+# === /start ===
 @bot.message_handler(commands=['start'])
 def start_command(message):
     if message.from_user.id not in ADMIN_IDS:
-        bot.send_message(message.chat.id, "🚫 Bu bot sadece yöneticiler tarafından kullanılabilir.")
+        bot.send_message(message.chat.id, "🚫 Bu bot sadece adminler için.")
         return
-    user_adi = message.from_user.first_name
-    text = f"🎉 Hoş geldin {user_adi}!\n\nAşağıdaki menüden seçim yap 👇"
-    bot.send_message(message.chat.id, text, reply_markup=ana_menu())
-
-
-# === MENÜ KOMUTLARI ===
-@bot.message_handler(func=lambda m: m.text == "🟢 Aktif Çekiliş Var mı")
-@admin_only
-def aktif_varmi(message):
-    if cekilisler:
-        bot.send_message(message.chat.id, f"🟢 Şu anda {len(cekilisler)} aktif çekiliş var.")
-    else:
-        bot.send_message(message.chat.id, "🔴 Şu anda aktif çekiliş yok.")
-
-
-@bot.message_handler(func=lambda m: m.text == "🎁 Katılımcılar")
-@admin_only
-def katilanlari_goster(message):
-    if not cekilisler:
-        bot.send_message(message.chat.id, "Henüz aktif çekiliş yok 😅")
-        return
-    text = "🎁 Aktif Çekilişler ve Katılımcılar:\n"
-    for cid, cekilis in cekilisler.items():
-        katilanlar = "\n".join(cekilis["katilanlar"]) if cekilis["katilanlar"] else "Henüz yok"
-        text += f"\nÇekiliş ID: {cid}\nKatılanlar ({len(cekilis['katilanlar'])}):\n{katilanlar}\n"
-    bot.send_message(message.chat.id, text)
-
-
-@bot.message_handler(func=lambda m: m.text == "⏱️ Otomatik Bitirme")
-@admin_only
-def otomatik_bitir_ayarla(message):
-    bot.send_message(message.chat.id, "Kaç kişi olunca çekiliş otomatik bitsin?")
-    bot.register_next_step_handler(message, otomatik_belirle)
-
-
-def otomatik_belirle(message):
-    try:
-        limit = int(message.text)
-    except ValueError:
-        bot.send_message(message.chat.id, "❌ Geçerli bir sayı girmeniz lazım.")
-        return
-    for cekilis in cekilisler.values():
-        cekilis["limit"] = limit
-    kaydet_veri()
-    bot.send_message(message.chat.id, f"✅ Limit {limit} kişi olarak ayarlandı.")
-
-
-# === ÇEKİLİŞ BAŞLAT - MESAJ ALTI SÜRE BUTONLARI ===
-@bot.message_handler(func=lambda m: m.text == "🚀 Çekiliş Başlat")
-@admin_only
-def cekilis_baslat(message):
-    markup = types.InlineKeyboardMarkup(row_width=3)
-    markup.add(
-        types.InlineKeyboardButton("30 Dakika", callback_data="sure_1800"),
-        types.InlineKeyboardButton("1 Saat", callback_data="sure_3600"),
-        types.InlineKeyboardButton("2 Saat", callback_data="sure_7200")
+    msg = bot.send_message(
+        message.chat.id,
+        "🎉 Hoş geldin! Admin paneli aşağıda:",
+        reply_markup=admin_inline_markup()
     )
-    bot.send_message(message.chat.id, "Çekiliş süresini seçin:", reply_markup=markup)
+    # Kaydet admin mesaj id (sadece tek admin DM mesajı)
+    # Eğer çoklu admin varsa bunu ayrı tutabilirsin
+    bot.chat_data = {message.from_user.id: msg.message_id}
 
+# === CALLBACK İŞLEMLERİ ===
+@bot.callback_query_handler(func=lambda call: True)
+def callback_handler(call):
+    user_id = call.from_user.id
+    chat_id = call.message.chat.id
 
-# === SÜRE SEÇİMİ CALLBACK ===
-@bot.callback_query_handler(func=lambda call: call.data.startswith("sure_"))
-def sure_secimi(call):
-    if call.from_user.id not in ADMIN_IDS:
-        bot.answer_callback_query(call.id, "🚫 Bu buton sadece adminler için.")
+    # Baslat çekiliş
+    if call.data == "baslat":
+        cekilis_id = str(time.time())
+        # Kanal mesajı
+        markup = types.InlineKeyboardMarkup()
+        katil_btn = types.InlineKeyboardButton("🎁 Katıl", callback_data=f"katil_{cekilis_id}")
+        markup.add(katil_btn)
+        msg = bot.send_message(
+            KANAL_ADI,
+            f"🎉 Yeni çekiliş başladı!\n👥 Katılan: 0",
+            reply_markup=markup
+        )
+        # Kaydet çekiliş
+        cekilisler[cekilis_id] = {
+            "katilanlar": [],
+            "mesaj_id": msg.message_id,
+            "admin_msg_id": bot.chat_data.get(user_id)
+        }
+        kaydet_veri()
+        bot.answer_callback_query(call.id, "✅ Çekiliş başlatıldı!")
+        # Admin DM mesajını güncelle
+        guncelle_admin_msg(user_id)
         return
-    
-    sure = int(call.data.split("_")[1])
-    cekilis_id = str(time.time())
 
-    # Inline katıl butonu
+    # Katılımcıları göster
+    elif call.data.startswith("katilan_"):
+        cekilis_id = call.data.split("_")[1]
+        cekilis = cekilisler.get(cekilis_id)
+        if not cekilis:
+            bot.answer_callback_query(call.id, "⚠️ Çekiliş bulunamadı.")
+            return
+        katilanlar = cekilis["katilanlar"]
+        text = "🎁 Katılımcılar:\n" + ("\n".join(katilanlar) if katilanlar else "Henüz yok")
+        bot.edit_message_text(text, chat_id=chat_id, message_id=cekilis["admin_msg_id"], reply_markup=admin_inline_markup(cekilis_id))
+        bot.answer_callback_query(call.id)
+
+    # Aktif çekiliş var mı
+    elif call.data.startswith("aktif_"):
+        cekilis_id = call.data.split("_")[1]
+        cekilis = cekilisler.get(cekilis_id)
+        if not cekilis:
+            bot.answer_callback_query(call.id, "⚠️ Çekiliş bulunamadı.")
+            return
+        count = len(cekilis["katilanlar"])
+        text = f"🟢 Aktif çekiliş! Katılan kişi sayısı: {count}"
+        bot.edit_message_text(text, chat_id=chat_id, message_id=cekilis["admin_msg_id"], reply_markup=admin_inline_markup(cekilis_id))
+        bot.answer_callback_query(call.id)
+
+    # Çekilişi bitir
+    elif call.data.startswith("bitir_"):
+        cekilis_id = call.data.split("_")[1]
+        if user_id not in ADMIN_IDS:
+            bot.answer_callback_query(call.id, "🚫 Sadece admin bitirebilir.")
+            return
+        bitir_cekilis(cekilis_id)
+        bot.answer_callback_query(call.id, "🛑 Çekiliş bitirildi!")
+        guncelle_admin_msg(user_id)
+
+    # Katıl butonu (kanal)
+    elif call.data.startswith("katil_"):
+        cekilis_id = call.data.split("_")[1]
+        cekilis = cekilisler.get(cekilis_id)
+        if not cekilis:
+            bot.answer_callback_query(call.id, "⚠️ Çekiliş sona ermiş.")
+            return
+        user = f"@{call.from_user.username}" if call.from_user.username else call.from_user.first_name
+        if user in cekilis["katilanlar"]:
+            bot.answer_callback_query(call.id, "Zaten katıldın 🎁")
+        else:
+            cekilis["katilanlar"].append(user)
+            kaydet_veri()
+            bot.answer_callback_query(call.id, "✅ Katıldın!")
+            guncelle_cekilis_mesaj(cekilis_id)
+
+# === ÇEKİLİŞ MESAJI GÜNCELLE ===
+def guncelle_cekilis_mesaj(cekilis_id):
+    cekilis = cekilisler.get(cekilis_id)
+    if not cekilis:
+        return
+    text = f"🎉 Yeni çekiliş!\n👥 Katılan: {len(cekilis['katilanlar'])}"
     markup = types.InlineKeyboardMarkup()
     katil_btn = types.InlineKeyboardButton("🎁 Katıl", callback_data=f"katil_{cekilis_id}")
     markup.add(katil_btn)
-
-    # Çekiliş mesajını kanalda oluştur
-    msg = bot.send_message(
-        KANAL_ADI,
-        f"🎉 Yeni çekiliş başladı! Süre: {sure//60} dakika\nKatılmak için tıkla 👇\n👥 Katılan: 0",
-        reply_markup=markup
-    )
-
-    cekilisler[cekilis_id] = {
-        "katilanlar": [],
-        "mesaj_id": msg.message_id,
-        "limit": None,
-        "bitis_suresi": time.time() + sure
-    }
-    kaydet_veri()
-
-    # Callback mesajını cevapla (buton basıldı mesajı)
-    bot.answer_callback_query(call.id, f"✅ Çekiliş başlatıldı! ID: {cekilis_id}")
-
-    # Süre sonunda çekilişi bitir
-    threading.Thread(target=sureli_bitir, args=(cekilis_id,)).start()
-
-
-# === KATIL BUTONU ===
-@bot.callback_query_handler(func=lambda call: call.data.startswith("katil_"))
-def katil_callback(call):
-    cekilis_id = call.data.split("_")[1]
-    cekilis = cekilisler.get(cekilis_id)
-    if not cekilis:
-        bot.answer_callback_query(call.id, "⚠️ Bu çekiliş sona ermiş.")
-        return
-
-    user = f"@{call.from_user.username}" if call.from_user.username else f"{call.from_user.first_name}_{call.from_user.id}"
-    if user in cekilis["katilanlar"]:
-        bot.answer_callback_query(call.id, "Zaten katıldın 🎁")
-    else:
-        cekilis["katilanlar"].append(user)
-        kaydet_veri()
-        bot.answer_callback_query(call.id, "✅ Katıldın!")
-        guncelle_katilim(cekilis_id)
-
-        # Limit varsa otomatik bitir
-        if cekilis["limit"] and len(cekilis["katilanlar"]) >= cekilis["limit"]:
-            bitir_cekilis(cekilis_id)
-
-
-# === KATIL SAYISI GÜNCELLEME ===
-def guncelle_katilim(cekilis_id):
-    cekilis = cekilisler.get(cekilis_id)
-    if not cekilis:
-        return
-    yeni_text = f"🎉 Yeni çekiliş başladı!\nKatılmak için tıkla 👇\n👥 Katılan: {len(cekilis['katilanlar'])}"
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🎁 Katıl", callback_data=f"katil_{cekilis_id}"))
     try:
-        bot.edit_message_text(
-            yeni_text, chat_id=KANAL_ADI, message_id=cekilis["mesaj_id"], reply_markup=markup
-        )
+        bot.edit_message_text(text, chat_id=KANAL_ADI, message_id=cekilis["mesaj_id"], reply_markup=markup)
     except Exception as e:
         print("Güncelleme hatası:", e)
 
+# === ADMIN DM MESAJI GÜNCELLE ===
+def guncelle_admin_msg(user_id):
+    text = "🎛️ Admin Paneli\nAktif Çekilişler:\n"
+    for cid, cekilis in cekilisler.items():
+        text += f"ID: {cid} | Katılan: {len(cekilis['katilanlar'])}\n"
+    msg_id = bot.chat_data.get(user_id)
+    if msg_id:
+        bot.edit_message_text(text, chat_id=user_id, message_id=msg_id, reply_markup=admin_inline_markup(list(cekilisler.keys())[0] if cekilisler else None))
 
 # === ÇEKİLİŞİ BİTİR ===
 def bitir_cekilis(cekilis_id):
     cekilis = cekilisler.pop(cekilis_id, None)
+    if not cekilis:
+        return
+    kazanan = random.choice(cekilis["katilanlar"]) if cekilis["katilanlar"] else "Kimse yok 😅"
+    try:
+        bot.edit_message_text(f"🎉 Çekiliş sona erdi!\n🏆 Kazanan: {kazanan}", chat_id=KANAL_ADI, message_id=cekilis["mesaj_id"])
+    except Exception as e:
+        print("Bitirme hatası:", e)
     kaydet_veri()
-    if not cekilis:
-        return
-    if not cekilis["katilanlar"]:
-        bot.edit_message_text(
-            f"Çekiliş {cekilis_id}: Kimse katılmadı 😅",
-            chat_id=KANAL_ADI,
-            message_id=cekilis["mesaj_id"]
-        )
-        return
-    kazanan = random.choice(cekilis["katilanlar"])
-    bot.edit_message_text(
-        f"🎉 Çekiliş {cekilis_id} sona erdi!\n🏆 Kazanan: {kazanan}",
-        chat_id=KANAL_ADI,
-        message_id=cekilis["mesaj_id"]
-    )
-
-
-# === SÜRELİ ÇEKİLİŞ BİTİRME THREAD ===
-def sureli_bitir(cekilis_id):
-    cekilis = cekilisler.get(cekilis_id)
-    if not cekilis:
-        return
-    kalan = cekilis["bitis_suresi"] - time.time()
-    if kalan > 0:
-        time.sleep(kalan)
-    bitir_cekilis(cekilis_id)
-
 
 # === BOT BAŞLANGICI ===
 yukle_veri()
-print("🤖 Bot aktif (çoklu çekiliş, süre ve JSON destekli) ve komut bekliyor...")
+print("🤖 Bot aktif (tüm admin kontrolleri DM'de, mesaj güncelleniyor)!")
 bot.polling(none_stop=True)
