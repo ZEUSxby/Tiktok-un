@@ -522,7 +522,7 @@ def handle_messages(message):
         
 # ----------------- BOT BAŞLAT -----------------
 if __name__ == "__main__":
-    print("🤖 Bot çalışıyor...")
+    print("Bot çalışıyor...")
     # Telebot logger'ı kapatabilirsin log spamını azaltmak için
     try:
         bot.infinity_polling()
