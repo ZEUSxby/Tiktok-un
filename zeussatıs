@@ -524,4 +524,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("Bot kapatıldı (KeyboardInterrupt).")
     except Exception as e:
-        print("polling hata:", e)
+        print("polling hat:", e)
