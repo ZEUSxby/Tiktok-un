@@ -7,7 +7,7 @@ import json
 import os
 
 # === AYARLAR ===
-BOT_TOKEN = "8180247520:AAFw-UVXLjO5S_YP8vJQFOIYWPHyGczjy2g"
+BOT_TOKEN = "8287112229:AAFdG513eap1ueLyeNkTqcFKVDAt11Hsmcw"
 KANAL_ADI = "@ByzeusxToolmain"
 ADMIN_IDS = [7823668175, 7038895537]
 
