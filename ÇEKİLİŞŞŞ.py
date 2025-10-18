@@ -6,7 +6,7 @@ import threading
 from datetime import datetime
 
 # === AYARLAR ===
-BOT_TOKEN = "7292398041:AAH-hJFA37ECAumrQEoHLkv42nzcdqO25hs"
+BOT_TOKEN = "8361686094:AAE9FQzmw053xgGvISLnQ3h4di_wDLMg47E"
 
 # Kanallar
 KANALLAR = {
