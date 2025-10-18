@@ -5,7 +5,7 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 import threading
 import time
 
-TOKEN = "7292398041:AAH-hJFA37ECAumrQEoHLkv42nzcdqO25hs"
+TOKEN = "8366405121:AAHQpezi6Tb7iPvyI--18fqtW7FOdT3Lrmw"
 bot = telebot.TeleBot(TOKEN)
 
 # ANSI renk kodları (konsol çıktısı için)
